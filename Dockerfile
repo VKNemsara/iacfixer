@@ -15,6 +15,7 @@ ENV HOME=/home/appuser PATH=/home/appuser/.local/bin:$PATH
 RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
 
 COPY --chown=appuser:appuser app ./app
+USER root
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint
 RUN chmod 755 /usr/local/bin/docker-entrypoint
 EXPOSE 8080
