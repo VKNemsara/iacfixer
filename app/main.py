@@ -124,15 +124,14 @@ def antigravity_response(prompt: str, workspace: str, continue_session: bool) ->
         raise RuntimeError("Antigravity returned invalid JSON:\n" + completed.stdout[-2000:]) from exc
 
 
-def repair_with_antigravity(playbook: str, findings: list[dict[str, str]], deployment_error: str | None,
+def repair_with_antigravity(playbook: str, filename: str, findings: list[dict[str, str]], deployment_error: str | None,
                             workspace: str, continue_session: bool) -> str:
+    playbook_path = Path(workspace) / filename
+    playbook_path.write_text(playbook, encoding="utf-8")
     prompt = f"""You are an expert Ansible security engineer. Repair this Ansible playbook semantically.
 Fix every ansible-lint and Checkov finding supplied below, and address any Docker/Ansible execution failure. Preserve the playbook's intended outcome and its task order unless a change is required for security or correctness. Do not silence checks with noqa, skip directives, or blanket suppressions. Do not invent unrelated tasks, credentials, images, variables, or roles. Ensure one fix does not break dependent tasks, variable references, handlers, module arguments, or idempotence.
 
-Return the complete repaired playbook between these exact markers, with YAML only inside:
-<REPAIRED_PLAYBOOK>
-(complete playbook YAML)
-</REPAIRED_PLAYBOOK>
+The playbook is the workspace file `{filename}`. Use your file-editing tools to update that file directly. Do not create a replacement file and do not put the playbook in your response. Your final response may be a short confirmation only; the system will read and validate `{filename}` after you finish.
 
 Current scanner findings:
 {json.dumps(findings, indent=2)}
@@ -140,15 +139,21 @@ Current scanner findings:
 Previous execution failure (empty before deployment fails):
 {deployment_error or '(none)'}
 
-Playbook:
-```yaml
-{playbook}
-```"""
+"""
     response = antigravity_response(prompt, workspace, continue_session)
+    edited = playbook_path.read_text(encoding="utf-8")
+    try:
+        parsed = yaml.safe_load(edited)
+        if isinstance(parsed, list) and parsed:
+            return edited
+    except yaml.YAMLError:
+        pass
+    # Compatibility fallback for CLI versions that answer with code instead of
+    # using their workspace editing tools. The fallback still filters prose.
     try:
         return yaml_only(response)
     except ValueError as exc:
-        raise ValueError(f"{exc}\nAntigravity response preview:\n{response.strip()[:1200]}") from exc
+        raise ValueError(f"Antigravity did not produce a valid edited playbook.\nResponse preview:\n{response.strip()[:1200]}") from exc
 
 
 async def execute_playbook(directory: str, filename: str) -> tuple[bool, str]:
@@ -177,7 +182,7 @@ async def workflow(filename: str, source: str, progress) -> dict[str, Any]:
             if findings or deployment_error:
                 progress("repair", f"Cycle {cycle}/{MAX_CYCLES}: Antigravity is applying scanner findings.", cycle=cycle)
                 current = await asyncio.to_thread(
-                    repair_with_antigravity, current, findings, deployment_error, workspace, repair_started
+                    repair_with_antigravity, current, filename, findings, deployment_error, workspace, repair_started
                 )
                 repair_started = True
                 path.write_text(current, encoding="utf-8")
