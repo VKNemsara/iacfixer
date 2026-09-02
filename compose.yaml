@@ -5,9 +5,6 @@ services:
       - "8080:8080"
     environment:
       DOCKER_HOST: unix:///var/run/docker.sock
-    # Set DOCKER_GID to the host socket group: stat -c '%g' /var/run/docker.sock
-    group_add:
-      - "${DOCKER_GID:-999}"
     volumes:
       # Docker API access is powerful. Run only trusted uploaded playbooks.
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock

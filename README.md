@@ -15,22 +15,21 @@ The UI shows scanning, individual Checkov and ansible-lint findings, repair, res
 
 ## Start
 
-1. Copy `.env.example` to `.env`.
-2. Obtain the Docker socket group ID with `stat -c '%g' /var/run/docker.sock` and set `DOCKER_GID` in `.env`.
-3. Start the service:
+1. Copy `.env.example` to `.env` only if your Docker socket is not at `/var/run/docker.sock`.
+2. Start the service:
 
    ```bash
    docker compose up --build -d
    ```
 
-4. Complete Antigravity OAuth once:
+3. Complete Antigravity OAuth once:
 
    ```bash
    docker compose exec iac-repair agy
    ```
 
    Choose Google OAuth and complete the CLI's first-run setup.
-5. Open `http://localhost:8080` and upload a playbook.
+4. Open `http://localhost:8080` and upload a playbook.
 
 ## Security boundary
 
