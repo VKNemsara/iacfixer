@@ -25,7 +25,7 @@ The UI shows scanning, individual Checkov and ansible-lint findings, repair, res
 3. Complete Antigravity OAuth once:
 
    ```bash
-   docker compose exec iac-repair agy
+   docker compose exec --user appuser iac-repair agy
    ```
 
    Choose Google OAuth and complete the CLI's first-run setup.

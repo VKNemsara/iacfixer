@@ -14,4 +14,8 @@ if [ -S /var/run/docker.sock ]; then
     usermod -aG "${socket_group}" appuser
 fi
 
+# A named volume is mounted over this directory at runtime. Ensure the account
+# used by the web service owns its Antigravity OAuth profile and CLI settings.
+chown -R appuser:appuser /home/appuser
+
 exec setpriv --reuid=appuser --regid=appuser --init-groups -- "$@"
