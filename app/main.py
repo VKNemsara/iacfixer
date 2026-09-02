@@ -22,15 +22,35 @@ def yaml_only(model_text: str) -> str:
     """Return only a syntactically valid YAML playbook; never return LLM prose."""
     delimited = re.findall(r"<REPAIRED_PLAYBOOK>\s*(.*?)\s*</REPAIRED_PLAYBOOK>", model_text, re.I | re.S)
     fenced = re.findall(r"```(?:yaml|yml)?\s*\n(.*?)```", model_text, re.I | re.S)
-    for candidate in delimited + fenced:
+    candidates = delimited + fenced
+    # Antigravity can occasionally omit the requested markers. In that case, only
+    # consider text beginning at a recognizable Ansible play start; do not pass the
+    # surrounding explanation into Ansible.
+    if not candidates:
+        lines = model_text.splitlines()
+        starts = [index for index, line in enumerate(lines) if re.match(r"^(?:---\s*$|-\s+(?:name|hosts)\s*:)", line)]
+        candidates = ["\n".join(lines[index:]) for index in starts]
+    for candidate in candidates:
         cleaned = candidate.strip()
         try:
             parsed = yaml.safe_load(cleaned)
             if isinstance(parsed, list) and parsed:
                 return cleaned
         except yaml.YAMLError:
-            continue
-    raise ValueError("Antigravity did not return a valid Ansible playbook.")
+            pass
+        # If the response has an unfenced conversational sign-off, retain the
+        # longest YAML-valid prefix only. This keeps plain text out of the playbook.
+        lines = cleaned.splitlines()
+        for end in range(len(lines) - 1, 0, -1):
+            prefix = "\n".join(lines[:end]).strip()
+            try:
+                parsed = yaml.safe_load(prefix)
+                if isinstance(parsed, list) and parsed:
+                    return prefix
+            except yaml.YAMLError:
+                continue
+    preview = model_text.strip().replace("\x00", "")[:1200]
+    raise ValueError("Antigravity did not return a valid Ansible playbook.\nResponse preview:\n" + preview)
 
 
 async def run_command(command: list[str], directory: str, timeout: int = COMMAND_TIMEOUT_SECONDS) -> tuple[int, str]:
